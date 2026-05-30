@@ -1,7 +1,7 @@
 {
-  "name": "Hajj Dua Plan",
-  "short_name": "Dua Plan",
-  "description": "A Hajj & year-round dua planner: Arafah plan, Fortress of the Muslim supplications, daily morning & evening adhkar, a step-by-step Hajj journey, 7 themed Riyadus Saliheen rounds for Tawaf & Sa'i, and a dhikr counter.",
+  "name": "Daily Dua — Quran & Sunnah Supplications",
+  "short_name": "Daily Dua",
+  "description": "A year-round dua app: morning & evening adhkar, Fortress of the Muslim supplications, Rabbana and Quranic duas with references and context of revelation, a dhikr counter, and a dedicated Hajj & Umrah section (Arafah plan, Hajj journey, and the 7 themed rounds).",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
