@@ -65,13 +65,30 @@ self.addEventListener('message', (event) => {
   }
 });
 
+// Server-sent Web Push (from /api/cron via the web-push library).
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; }
+  catch (e) { data = { body: event.data && event.data.text() }; }
+  const title = data.title || 'Daily Dua';
+  event.waitUntil(self.registration.showNotification(title, {
+    body: data.body || 'Time for your daily dua 🤲',
+    icon: './icon.svg',
+    badge: './icon.svg',
+    tag: 'daily-reminder',
+    renotify: true,
+    data: { url: data.url || './index.html' }
+  }));
+});
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || './index.html';
   event.waitUntil((async () => {
     const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const c of all) {
       if ('focus' in c) return c.focus();
     }
-    if (self.clients.openWindow) return self.clients.openWindow('./index.html');
+    if (self.clients.openWindow) return self.clients.openWindow(target);
   })());
 });

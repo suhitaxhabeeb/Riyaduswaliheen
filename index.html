@@ -760,12 +760,13 @@ function reflectReminder(on){
 }
 function onReminderTimeChange(){
   localStorage.setItem('reminderTime',document.getElementById('reminder-time').value);
-  if(localStorage.getItem('reminderOn')==='1'){ reflectReminder(true); registerReminder(); }
+  if(localStorage.getItem('reminderOn')==='1'){ reflectReminder(true); registerReminder(); subscribeToPush(); }
 }
 function toggleReminder(){
   if(localStorage.getItem('reminderOn')==='1'){
     localStorage.setItem('reminderOn','0');
     reflectReminder(false);
+    unsubscribePush();
     return;
   }
   if(!reminderSupported()){
@@ -783,6 +784,7 @@ function toggleReminder(){
     localStorage.setItem('reminderTime',document.getElementById('reminder-time').value);
     reflectReminder(true);
     registerReminder();
+    subscribeToPush();
     // immediate confirmation so the user sees it works
     if('serviceWorker' in navigator){
       navigator.serviceWorker.ready.then(function(reg){
@@ -802,6 +804,71 @@ function registerReminder(){
         }
       }).catch(function(){});
     }
+  }).catch(function(){});
+}
+
+// ── Web Push (optional backend) ──────────────────────────────────
+// Subscribes to server-sent push so reminders arrive even when the app and
+// browser are fully closed. Degrades silently if no backend/VAPID key exists.
+function tzOffsetMin(){ return -new Date().getTimezoneOffset(); }
+
+function urlBase64ToUint8Array(base64String){
+  var padding='='.repeat((4-base64String.length%4)%4);
+  var base64=(base64String+padding).replace(/-/g,'+').replace(/_/g,'/');
+  var raw=atob(base64);
+  var out=new Uint8Array(raw.length);
+  for(var i=0;i<raw.length;i++){ out[i]=raw.charCodeAt(i); }
+  return out;
+}
+
+function getVapidKey(){
+  return fetch('/api/vapid').then(function(r){ return r.ok?r.json():null; })
+    .then(function(j){ return j&&j.publicKey?j.publicKey:null; })
+    .catch(function(){ return null; });
+}
+
+function subscribeToPush(){
+  if(!('serviceWorker' in navigator)||!('PushManager' in window)) return;
+  getVapidKey().then(function(key){
+    if(!key) return; // no backend configured — local fallback already active
+    navigator.serviceWorker.ready.then(function(reg){
+      reg.pushManager.getSubscription().then(function(existing){
+        var subPromise = existing ? Promise.resolve(existing) :
+          reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(key)});
+        subPromise.then(function(sub){
+          fetch('/api/subscribe',{
+            method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({subscription:sub,reminderTime:localStorage.getItem('reminderTime')||'08:00',tz:tzOffsetMin()})
+          }).catch(function(){});
+        }).catch(function(){});
+      });
+    });
+  });
+}
+
+function unsubscribePush(){
+  if(!('serviceWorker' in navigator)||!('PushManager' in window)) return;
+  navigator.serviceWorker.ready.then(function(reg){
+    reg.pushManager.getSubscription().then(function(sub){
+      if(!sub) return;
+      var endpoint=sub.endpoint;
+      sub.unsubscribe().catch(function(){});
+      fetch('/api/unsubscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:endpoint})}).catch(function(){});
+    });
+  }).catch(function(){});
+}
+
+// Tell the backend the user opened the app today (so the cron knows who didn't).
+function pingVisit(){
+  if(!('serviceWorker' in navigator)||!('PushManager' in window)) return;
+  navigator.serviceWorker.ready.then(function(reg){
+    reg.pushManager.getSubscription().then(function(sub){
+      if(!sub) return;
+      fetch('/api/visit',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({endpoint:sub.endpoint,tz:tzOffsetMin(),reminderTime:localStorage.getItem('reminderTime')||'08:00'})
+      }).catch(function(){});
+    });
   }).catch(function(){});
 }
 
@@ -1124,7 +1191,7 @@ function resetFull(){
 function startApp(){
   init();
   if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('./sw.js').catch(function(){});
+    navigator.serviceWorker.register('./sw.js').then(function(){ pingVisit(); }).catch(function(){});
   }
   var ls=document.getElementById('ls');
   if(ls){ls.style.opacity='0';ls.style.transition='opacity .3s';setTimeout(function(){ls.style.display='none';},350);}
