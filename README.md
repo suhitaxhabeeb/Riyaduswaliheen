@@ -19,7 +19,18 @@ file server.
 - **Themed collections** — rizq, marriage, forgiveness, family, heart, health,
   growth, gratitude, akhirah, parenting, and Ummah duas.
 - **Dhikr counter** — a tap counter with target presets (33 / 99 / 100 / ∞)
-  and selectable dhikr.
+  and selectable dhikr. The per-dua counter in the reader **persists**: each
+  dua keeps its own count (saved in `localStorage`), so navigating between
+  duas or reloading never loses your place.
+- **Daily streak** — opening the app on consecutive days builds a streak
+  (shown in the header and on the home card), with your best streak tracked.
+- **Daily reminder (opt-in)** — enable a notification and pick a time to get a
+  nudge so you don't break your streak. On supporting browsers with the app
+  installed to the home screen, a service worker (`sw.js`) uses Periodic
+  Background Sync to remind you on days you haven't opened the app. *Note:*
+  fully reliable reminders while the app is closed depend on the browser/OS;
+  cross-device server push would require a small backend (not included in this
+  static build).
 
 ### Hajj & Umrah (dedicated section)
 All pilgrimage duas are consolidated under one **Hajj & Umrah** hub, reachable
