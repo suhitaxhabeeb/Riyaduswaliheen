@@ -19,7 +19,18 @@ file server.
 - **Themed collections** — rizq, marriage, forgiveness, family, heart, health,
   growth, gratitude, akhirah, parenting, and Ummah duas.
 - **Dhikr counter** — a tap counter with target presets (33 / 99 / 100 / ∞)
-  and selectable dhikr.
+  and selectable dhikr. The per-dua counter in the reader **persists**: each
+  dua keeps its own count (saved in `localStorage`), so navigating between
+  duas or reloading never loses your place.
+- **Daily streak** — opening the app on consecutive days builds a streak
+  (shown in the header and on the home card), with your best streak tracked.
+- **Daily reminder (opt-in)** — enable a notification and pick a time to get a
+  nudge so you don't break your streak. On supporting browsers with the app
+  installed to the home screen, a service worker (`sw.js`) uses Periodic
+  Background Sync to remind you on days you haven't opened the app. *Note:*
+  fully reliable reminders while the app is closed depend on the browser/OS.
+  For cross-device reminders that arrive even when the browser is closed, see
+  **Web Push backend** below.
 
 ### Hajj & Umrah (dedicated section)
 All pilgrimage duas are consolidated under one **Hajj & Umrah** hub, reachable
@@ -44,6 +55,63 @@ scholarship does not record a specific occasion of revelation for a
 supplication-verse, the panel gives the surah context rather than inventing a
 sabab al-nuzūl. Hadith-sourced duas cite their collection (Bukhārī, Muslim, Abū
 Dāwūd, Tirmidhī, Fortress of the Muslim, etc.).
+
+## Web Push backend (optional)
+
+The app works fully as a static site. If you also deploy the included
+serverless functions on Vercel, reminders are sent as **real Web Push
+notifications** — they arrive even when the browser and app are completely
+closed, on any device the user has subscribed from.
+
+### How it works
+
+- `api/vapid.js` — serves the public VAPID key to the client.
+- `api/subscribe.js` / `api/unsubscribe.js` — store/remove a push subscription
+  (plus the user's chosen reminder time and timezone) in Vercel KV.
+- `api/visit.js` — the app pings this on open so the server knows the user's
+  last visit date.
+- `api/cron.js` — run daily by Vercel Cron (`vercel.json` → `crons`). It pushes
+  a reminder to every subscriber who **has not opened the app today** (in their
+  local timezone) and is past their chosen reminder hour. A `lastSent` guard
+  prevents duplicate sends.
+
+The client degrades silently: if no VAPID key is configured, it falls back to
+the local service-worker reminder and never errors.
+
+### Setup on Vercel
+
+1. **Add a KV store**: in the Vercel dashboard → Storage → create a KV
+   (Upstash Redis) database and connect it to the project. This injects the
+   `KV_REST_API_URL` / `KV_REST_API_TOKEN` env vars used by `@vercel/kv`.
+2. **Generate VAPID keys** (locally):
+   ```bash
+   npx web-push generate-vapid-keys
+   ```
+3. **Set environment variables** (Project → Settings → Environment Variables):
+   - `VAPID_PUBLIC_KEY` — the generated public key
+   - `VAPID_PRIVATE_KEY` — the generated private key  *(keep secret)*
+   - `VAPID_SUBJECT` — `mailto:you@example.com`
+   - `CRON_SECRET` — any random string; Vercel sends it as a Bearer token so
+     only Vercel can trigger `/api/cron`.
+4. **Deploy.** The cron in `vercel.json` runs `/api/cron` daily at 09:00 UTC.
+   - On **Hobby**, crons fire about once a day, so users whose reminder hour has
+     already passed at the fire time get the nudge; change the schedule to suit
+     your audience's timezone.
+   - On **Pro**, set the schedule to hourly (`0 * * * *`) for per-user
+     reminder-time precision across timezones (the cron logic already supports
+     this via the `lastSent` guard).
+
+No secrets are committed to the repo — keys live only in Vercel env vars.
+
+## Run locally
+
+```bash
+# static only:
+npx serve .        # or: python3 -m http.server 8000
+
+# with the API (needs the env vars above in a .env.local):
+npm i -g vercel && vercel dev
+```
 
 ## Run locally
 
